@@ -91,7 +91,7 @@ model User {
   image          String?
   password       String
   gender         gender_enum
-  address        String
+  address        String?
   role           UserRoleEnum @default(USER)
   status         user_status_enum @default(in_progress)
   subscription   Subscription?

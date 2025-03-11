@@ -1,18 +1,17 @@
-import * as bcrypt from 'bcrypt';
-import httpStatus from 'http-status';
-import { Secret } from 'jsonwebtoken';
-import config from '../../config';
-import AppError from '../../errors/ApiError';
+import * as bcrypt from "bcrypt";
+import httpStatus from "http-status";
+import { Secret } from "jsonwebtoken";
+import config from "../../config";
+import AppError from "../../errors/ApiError";
 // import { generateResetPasswordToken, generateToken } from '../../helpers/generateToken';
-import prisma from '../../config/prisma';
+import prisma from "../../config/prisma";
 
-import crypto from 'crypto'
+import crypto from "crypto";
 
-import sentEmailUtility from '../../utils/sentEmailUtility';
-import { emailText } from '../../utils/emailTemplate';
-import { User, user_status } from '@prisma/client';
-import { messaging } from 'firebase-admin';
-import { jwtHelpers } from '../../helpers/jwtHelpers';
+import sentEmailUtility from "../../utils/sentEmailUtility";
+import { emailText } from "../../utils/emailTemplate";
+import { User, user_status_enum, UserRoleEnum } from "@prisma/client";
+import { jwtHelpers } from "../../helpers/jwtHelpers";
 
 const loginUserFromDB = async (payload: {
   email: string;
@@ -33,7 +32,7 @@ const loginUserFromDB = async (payload: {
   );
 
   if (!isCorrectPassword) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Password incorrect');
+    throw new AppError(httpStatus.BAD_REQUEST, "Password incorrect");
   }
 
   // Update the FCM token if provided
@@ -69,48 +68,43 @@ const loginUserFromDB = async (payload: {
 };
 
 const registrationNewUser = async (payload: User) => {
-  const hash = await bcrypt.hash(
+
+
+  // Check if email is already registered
+  const existingUser = await prisma.user.findUnique({
+    where: { email: payload.email },
+  });
+
+  if (existingUser) {
+    throw new AppError(httpStatus.CONFLICT, `This email is already registered`);
+  }
+
+  // Hash the password
+  const hashPassword = await bcrypt.hash(
     payload.password,
     Number(config.bcrypt_salt_rounds)
   );
 
-  let userName = payload.userName || payload.email.split('@')[0];
-
-  // Loop until a unique username is found
-  let userNameExists = await prisma.user.findUnique({
-    where: {
-      userName,
-    },
-  });
-
-  while (userNameExists) {
-    userName = `${payload.email.split('@')[0]}-${Math.floor(
-      Math.random() * 1000
-    )}`;
-    userNameExists = await prisma.user.findUnique({
-      where: {
-        userName,
-      },
-    });
-  }
 
   const createUser = await prisma.user.create({
     data: {
-      userName,
-      password: hash,
+      name: payload.name,
+      password: hashPassword,
       email: payload.email,
-      role: payload.role,
-      isAgreed: true,
+      age: payload.age,
+      gender: payload.gender,
+      address: payload.address,
     },
     select: {
       id: true,
       email: true,
       name: true,
       role: true,
-      isAgreed: true,
-      userName: true
-    }
-
+      status: true,
+      isVerified: true,
+      createdAt: true,
+      updatedAt: true,
+    },
   });
 
   return createUser;
@@ -123,25 +117,35 @@ const forgotPassword = async (payload: { email: string }) => {
   if (!user) {
     throw new AppError(
       httpStatus.NOT_FOUND,
-      'User not found! with this email ' + payload.email
+      "User not found! with this email " + payload.email
     );
   }
 
   const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
   const expiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes expiry
-  const identifier = crypto.randomBytes(16).toString('hex');
+  const identifier = crypto.randomBytes(16).toString("hex");
 
   // Save OTP to database
   const userData = await prisma.otp.upsert({
     where: { email: user.email },
-    update: { email: user.email, otp: otpCode, expiry: expiry, hexCode: identifier },
-    create: { email: user.email, otp: otpCode, expiry: expiry, hexCode: identifier },
+    update: {
+      email: user.email,
+      otp: otpCode,
+      expiry: expiry,
+      hexCode: identifier,
+    },
+    create: {
+      email: user.email,
+      otp: otpCode,
+      expiry: expiry,
+      hexCode: identifier,
+    },
   });
 
   // Send OTP via email
   const result = await sentEmailUtility(
     user.email,
-    'Reset Your Password',
+    "Reset Your Password",
     emailText(otpCode)
   );
   return {
@@ -150,10 +154,7 @@ const forgotPassword = async (payload: { email: string }) => {
   };
 };
 
-const verifyOtpCode = async (payload: {
-  hexCode: string;
-  otpCode: string;
-}) => {
+const verifyOtpCode = async (payload: { hexCode: string; otpCode: string }) => {
   const otpRecord = await prisma.otp.findFirst({
     where: {
       hexCode: payload.hexCode,
@@ -162,7 +163,7 @@ const verifyOtpCode = async (payload: {
   });
 
   if (!otpRecord) {
-    throw new AppError(httpStatus.UNAUTHORIZED, 'Invalid OTP');
+    throw new AppError(httpStatus.UNAUTHORIZED, "Invalid OTP");
   }
 
   // Check if OTP is expired
@@ -176,7 +177,7 @@ const verifyOtpCode = async (payload: {
 
     throw new AppError(
       httpStatus.GONE,
-      'The OTP has expired. Please request a new one.'
+      "The OTP has expired. Please request a new one."
     );
   }
   // If OTP is valid, delete the OTP from the database
@@ -186,58 +187,67 @@ const verifyOtpCode = async (payload: {
       select: {
         id: true,
         email: true,
-      }
+      },
     }),
     prisma.otp.delete({
       where: {
         id: otpRecord.id,
       },
-    })
-  ])
+    }),
+  ]);
 
   if (!user) {
-    throw new AppError(httpStatus.NOT_FOUND, 'User not found! user is possibly deleted by mistake please register')
+    throw new AppError(
+      httpStatus.NOT_FOUND,
+      "User not found! user is possibly deleted by mistake please register"
+    );
   }
   // Generate an access token
   const accessToken = jwtHelpers.generateToken(
     {
-      id: user.id
+      id: user.id,
     },
     config.jwt.reset_pass_secret as Secret,
-    config.jwt.reset_pass_expires_in as string,
+    config.jwt.reset_pass_expires_in as string
   );
   // Hash the new password
-  return { accessToken }
-
+  return { accessToken };
 };
-const resetPassword = async (userId: string, payload: {
-  password: string;
-}) => {
-
+const resetPassword = async (
+  userId: string,
+  payload: {
+    password: string;
+  }
+) => {
   const userToUpdate = await prisma.user.findUnique({
     where: {
       id: userId,
     },
-
   });
 
   if (!userToUpdate) {
-    throw new AppError(httpStatus.NOT_FOUND, 'User not found in the database.');
+    throw new AppError(httpStatus.NOT_FOUND, "User not found in the database.");
   }
 
   // If valid, delete the OTP from the database
   const updatedUser = await prisma.user.update({
     where: { id: userToUpdate.id },
     data: {
-      password: await bcrypt.hash(payload.password, Number(config.bcrypt_salt_rounds)),
+      password: await bcrypt.hash(
+        payload.password,
+        Number(config.bcrypt_salt_rounds)
+      ),
     },
   });
 
   if (!updatedUser) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'User not found in the database.');
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "User not found in the database."
+    );
   }
   return {
-    message: 'password updated successfully',
+    message: "password updated successfully",
   };
 };
 const changePassword = async (payload: {
@@ -251,24 +261,25 @@ const changePassword = async (payload: {
       password: true,
       email: true,
       id: true,
-      user_status: true,
-
+      role: true,
+      status: true,
+      createdAt: true,
+      updatedAt: true,
     },
   });
 
   if (!userData) {
     throw new AppError(
       httpStatus.NOT_FOUND,
-      'User not found!, If you have already have account please reset your password'
+      "User not found!, If you have already have account please reset your password"
     );
   }
 
-
   // Check if the user status is BLOCKED
-  if (userData.user_status === user_status.BLOCKED) {
+  if (userData.status === user_status_enum.blocked) {
     throw new AppError(
       httpStatus.FORBIDDEN,
-      'Your account has been blocked. Please contact support.'
+      "Your account has been blocked. Please contact support."
     );
   }
 
@@ -279,7 +290,7 @@ const changePassword = async (payload: {
   );
 
   if (!isCorrectPassword) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Password incorrect');
+    throw new AppError(httpStatus.BAD_REQUEST, "Password incorrect");
   }
   // Hash the user's password
 
@@ -295,10 +306,10 @@ const changePassword = async (payload: {
     },
   });
   if (!updatedUser) {
-    throw new AppError(httpStatus.NOT_FOUND, 'User not found in the database.');
+    throw new AppError(httpStatus.NOT_FOUND, "User not found in the database.");
   }
   return {
-    message: 'password updated successfully',
+    message: "password updated successfully",
   };
 };
 

@@ -7,7 +7,9 @@ const router = express.Router();
 
 
 
-router.post('/register', AuthControllers.registrationNewUser);
+router.post('/register',
+  validateRequest(authValidation.registerUserSchema),
+  AuthControllers.registrationNewUser);
 router.post(
   '/login',
   validateRequest(authValidation.loginUser),
