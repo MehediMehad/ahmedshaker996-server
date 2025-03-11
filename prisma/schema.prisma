@@ -1,0 +1,281 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// model User {
+//   id        String    @id @default(auto()) @map("_id") @db.ObjectId
+//   name String?
+//   password  String
+//   email     String    @unique
+//   phone     String?
+
+//   // address
+//   street    String?
+//   city      String?
+//   state     String?
+//   zipCode   String?
+//   country   String?
+//   fcmToken  String?
+//   joinDate  DateTime?
+//   leaveDate DateTime?
+
+//   bloodGroup   String?
+//   image        String?
+//   role         UserRoleEnum @default(USER)
+//   departmentId String?      @db.ObjectId
+
+//   leavePolicyId String? @db.ObjectId
+
+//   status             Boolean     @default(true)
+//   createdAt          DateTime    @default(now())
+//   updatedAt          DateTime    @updatedAt
+//   isAgreed           Boolean     @default(false)
+//   created_at         DateTime    @default(now())
+//   updated_at         DateTime    @updatedAt
+//   deleted_at         DateTime?
+//   // customerId         String      @unique
+//   user_status        user_status @default(in_progress)
+//   // subscription 
+//   subscriptionPlanId String?     @db.ObjectId
+//   // subscriptionPlan           SubscriptionPlan? @relation(fields: [subscriptionPlanId], references: [id])
+//   subscriptionStarts DateTime?
+//   subscriptionEnds   DateTime?
+//   subscriptionType   String?
+//   subscriptionStatus String?
+//   subscriptionPrice  Float?
+//   subscriptionLength Int?
+
+//   //reset password
+//   reset_password_token       String? // Optional field, used when needed
+//   reset_password_send_at     DateTime? // Optional field, used when needed
+//   last_login_at              DateTime? // Optional field, updated upon login
+//   email_confirmed            Boolean   @default(false)
+//   email_confirmation_token   String? // Optional field, used when needed
+//   email_confirmation_sent_at DateTime? // Optional field, used when needed
+//   email_confirmed_at         DateTime? // Optional field, used when needed
+//   isVerified                 Boolean   @default(false) // Optional field
+//   //subscription
+//   // subscription               subscription[]
+
+//   //relations   
+
+//   notifications Notification[]
+
+//   @@map("users")
+// }
+
+// enum UserRoleEnum {
+//   SUPER_ADMIN
+//   PARTNER
+//   USER
+// }
+
+// enum user_status {
+//   in_progress
+//   blocked
+// }
+model User {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  name           String
+  age            Int
+  email          String   @unique
+  phone          String?
+  image          String?
+  password       String
+  gender         gender_enum
+  address        String
+  role           UserRoleEnum @default(USER)
+  status         user_status_enum @default(in_progress)
+  subscription   Subscription?
+  classes        Class[]
+  bookings       Booking[]
+  isDelete       Boolean @default(false)
+  isVerified     Boolean @default(false)
+  fcmToken       String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("users")
+}
+
+// model Partner {
+//   id             String   @id @default(auto()) @map("_id") @db.ObjectId
+//   name           String
+//   email          String   @unique
+//   phone          String?
+//   password       String
+//   classes        Class[]
+//   createdAt      DateTime @default(now())
+
+//   @@map("partners")
+// }
+model SuperAdmin {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  name           String
+  email          String   @unique
+  phone          String?
+  role           UserRoleEnum @default(SUPER_ADMIN)
+  password       String
+  createdAt      DateTime? @default(now())
+
+  @@map("admins")
+}
+
+model Subscription {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  user           User     @relation(fields: [userId], references: [id])
+  userId         String   @unique @db.ObjectId
+  plan           PlanEnum 
+  price          Float
+  duration       Int
+  startDate      DateTime
+  endDate        DateTime
+  credits        Int
+  renewalDate    DateTime
+
+  @@map("subscriptions")
+}
+
+model Booking {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  user           User     @relation(fields: [userId], references: [id])
+  userId         String   @db.ObjectId
+  class          Class    @relation(fields: [classId], references: [id])
+  classId        String   @db.ObjectId
+  date           DateTime
+  status         booking_status_enum  @default(BOOKED)
+  createdAt      DateTime @default(now())
+
+  @@map("bookings")
+}
+
+
+model Class {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  title          String
+  description    String
+  instructor     String
+  schedule       DateTime
+  location       String
+  startTime     DateTime
+  endTime       DateTime
+  price          Float
+  duration       Int
+  capacity       Int
+  available       Boolean @default(true)
+  students        String[]
+  bookings       Booking[]
+  user           User?    @relation(fields: [userId], references: [id])
+  userId         String?  @db.ObjectId
+  partnerId      String?  @db.ObjectId
+
+  @@map("classes")
+}
+
+
+
+
+
+
+model Otp {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  email     String   @unique
+  hexCode   String   @unique
+  otp       String
+  expiry    DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("otps")
+}
+
+model Notification {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId // The instructor who will receive the notification
+  title     String
+  message   String // The message content of the notification
+  body      String
+  isRead    Boolean  @default(false) // Indicates whether the notification has been read
+  createdAt DateTime @default(now()) // Timestamp of when the notification was created 
+
+  isClicked Boolean @default(false) // Indicates whether the notification has been read
+  // User      User    @relation(fields: [userId], references: [id])
+
+  @@map("notifications")
+}
+
+model Terms {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  description String
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@map("terms")
+}
+
+model Policy {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  description String
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@map("policy")
+}
+
+
+
+// Enum
+
+enum UserRoleEnum {
+  SUPER_ADMIN
+  PARTNER
+  USER
+}
+
+enum gender_enum {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum user_status_enum {
+  in_progress
+  blocked
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+enum booking_status_enum {
+  BOOKED
+  CANCELLED
+  COMPLETED
+}
+
+enum ClassStatus {
+  PUBLISHED
+  DRAFT
+  ARCHIVED
+}
+
+enum OtpType {
+  LOGIN
+  FORGOT_PASSWORD
+}
+
+enum PlanEnum {
+  STARTER
+  ACTIVE
+  UNLIMITED
+}
