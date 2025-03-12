@@ -30,7 +30,7 @@ router.post(
 router.post(
   '/verify-otp',
   validateRequest(authValidation.verifyOtpSchema),
-  AuthControllers.verifyOtpCode
+  AuthControllers.verifiedEmail
 );
 
 router.post(

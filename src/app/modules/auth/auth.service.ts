@@ -13,60 +13,6 @@ import { emailText } from "../../utils/emailTemplate";
 import { User, user_status_enum, UserRoleEnum } from "@prisma/client";
 import { jwtHelpers } from "../../helpers/jwtHelpers";
 
-const loginUserFromDB = async (payload: {
-  email: string;
-  password: string;
-  fcmToken: string;
-}) => {
-  // Find the user by email
-  const userData = await prisma.user.findUniqueOrThrow({
-    where: {
-      email: payload.email,
-    },
-  });
-
-  // Check if the password is correct
-  const isCorrectPassword = await bcrypt.compare(
-    payload.password,
-    userData.password as string
-  );
-
-  if (!isCorrectPassword) {
-    throw new AppError(httpStatus.BAD_REQUEST, "Password incorrect");
-  }
-
-  // Update the FCM token if provided
-  // if (payload?.fcmToken) {
-  //   await prisma.user.update({
-  //     where: {
-  //       email: payload.email, // Use email as the unique identifier for updating
-  //     },
-  //     data: {
-  //       fcmToken: payload.fcmToken,
-  //     },
-  //   });
-  // }
-
-  // Generate an access token
-  const accessToken = jwtHelpers.generateToken(
-    {
-      id: userData.id,
-      email: userData.email as string,
-      role: userData.role,
-    },
-    config.jwt.access_secret as Secret,
-    config.jwt.access_expires_in
-  );
-
-  // Return user details and access token
-  return {
-    id: userData.id,
-    email: userData.email,
-    role: userData.role,
-    accessToken: accessToken,
-  };
-};
-
 const registrationNewUser = async (payload: User) => {
   return await prisma.$transaction(async (prisma) => {
     // Check if email is already registered
@@ -128,17 +74,6 @@ const registrationNewUser = async (payload: User) => {
       },
     });
 
-    // Generate access token
-    const accessToken = jwtHelpers.generateToken(
-      {
-        id: newUser.id,
-        email: newUser.email,
-        role: newUser.role,
-      },
-      config.jwt.access_secret as Secret,
-      config.jwt.access_expires_in as string
-    );
-
     // Send OTP via email (Outside transaction)
     await sentEmailUtility(
       newUser.email,
@@ -153,10 +88,117 @@ const registrationNewUser = async (payload: User) => {
       isVerified: newUser.isVerified,
       createdAt: newUser.createdAt,
       updatedAt: newUser.updatedAt,
-      accessToken,
       hexCode: userData.hexCode,
     };
   });
+};
+
+const verifyEmail = async (hexCode: string, otpCode: string) => {
+  
+  return await prisma.$transaction(async (prisma) => {
+    // Find OTP record
+    const otpRecord = await prisma.otp.findFirst({
+      where: { hexCode: hexCode, otp: otpCode },
+    });
+    // 
+    if (otpRecord?.otp !== otpCode) {
+      throw new AppError(httpStatus.BAD_REQUEST, "Invalid OTP or expired OTP");
+    }
+
+    if (!otpRecord) {
+      throw new AppError(httpStatus.BAD_REQUEST, "Invalid OTP or expired OTP");
+    }
+
+    // Delete OTP record
+    await prisma.otp.delete({ where: { id: otpRecord.id } });
+
+    // Update user verification status
+    const updatedUser = await prisma.user.update({
+      where: { email: otpRecord.email },
+      data: { isVerified: true },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        status: true,
+        isVerified: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    // Generate access token
+    const accessToken = jwtHelpers.generateToken(
+      {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        role: updatedUser.role,
+      },
+      config.jwt.access_secret as Secret,
+      config.jwt.access_expires_in as string
+    );
+
+    return {
+      ...updatedUser,
+      accessToken,
+    };
+  });
+};
+
+
+const loginUserFromDB = async (payload: {
+  email: string;
+  password: string;
+  fcmToken: string;
+}) => {
+  // Find the user by email
+  const userData = await prisma.user.findUniqueOrThrow({
+    where: {
+      email: payload.email,
+    },
+  });
+
+  // Check if the password is correct
+  const isCorrectPassword = await bcrypt.compare(
+    payload.password,
+    userData.password as string
+  );
+
+  if (!isCorrectPassword) {
+    throw new AppError(httpStatus.BAD_REQUEST, "Password incorrect");
+  }
+
+  // Update the FCM token if provided
+  // if (payload?.fcmToken) {
+  //   await prisma.user.update({
+  //     where: {
+  //       email: payload.email, // Use email as the unique identifier for updating
+  //     },
+  //     data: {
+  //       fcmToken: payload.fcmToken,
+  //     },
+  //   });
+  // }
+
+  // Generate an access token
+  const accessToken = jwtHelpers.generateToken(
+    {
+      id: userData.id,
+      email: userData.email as string,
+      role: userData.role,
+    },
+    config.jwt.access_secret as Secret,
+    config.jwt.access_expires_in
+  );
+
+  // Return user details and access token
+  return {
+    id: userData.id,
+    email: userData.email,
+    role: userData.role,
+    accessToken: accessToken,
+  };
 };
 
 const forgotPassword = async (payload: { email: string }) => {
@@ -366,6 +408,7 @@ export const AuthServices = {
   loginUserFromDB,
   registrationNewUser,
   forgotPassword,
+  verifyEmail,
   verifyOtpCode,
   resetPassword,
   changePassword,

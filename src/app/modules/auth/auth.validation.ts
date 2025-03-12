@@ -54,7 +54,7 @@ const changePasswordValidationSchema = z.object({
 });
 const verifyOtpSchema = z.object({
   body: z.object({
-    otpCode: z.string().length(6, 'Please enter a 6-character OTP code'),
+    otpCode: z.string({required_error: "Opt Code is required"}).length(6, 'Please enter a 6-character OTP code'),
     hexCode: z
       .string({
         required_error: 'hexCode is required',

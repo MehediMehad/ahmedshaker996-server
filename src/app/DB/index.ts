@@ -16,7 +16,7 @@ const superAdminData = {
 const seedSuperAdmin = async () => {
   try {
     // Check if a super admin already exists
-    const isSuperAdminExists = await prisma.user.findFirst({
+    const isSuperAdminExists = await prisma.superAdmin.findFirst({
       where: {
         role: UserRoleEnum.SUPER_ADMIN,
       },
