@@ -1,12 +1,11 @@
-import { User } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
 import prisma from '../../config/prisma';
 import ApiError from '../../errors/ApiError';
 import httpStatus from 'http-status';
-import sentEmailUtility from '../../utils/sentEmailUtility';
 import { IPaginationOptions } from '../../interface/pagination.type';
 import { paginationHelper } from '../../helpers/paginationHelper';
-// import { paginationHelper } from '../../../helpars/paginationHelper';
+import fs from "fs";
+import path from "path";
+import { User } from '@prisma/client';
 
 const getAllUsersFromDB = async (
   options: IPaginationOptions & { email?: string }
@@ -41,7 +40,6 @@ const getAllUsersFromDB = async (
         name: true,
         role: true,
         email: true,
-        isAgreed: true,
         status: true,
         createdAt: true,
         updatedAt: true,
@@ -82,7 +80,6 @@ const getMyProfileFromDB = async (id: string) => {
       name: true,
       phone: true,
       email: true,
-      userName: true,
       createdAt: true,
       updatedAt: true,
     },
@@ -97,11 +94,9 @@ const getUserDetailsFromDB = async (id: string) => {
     select: {
       id: true,
       phone: true,
-      userName: true,
       name: true,
       role: true,
       email: true,
-      isAgreed: true,
       status: true,
       createdAt: true,
       updatedAt: true,
@@ -114,24 +109,49 @@ const getUserDetailsFromDB = async (id: string) => {
   return user;
 };
 
-const updateMyProfileIntoDB = async (id: string, payload: any, file: any) => {
+const updateMyProfileIntoDB = async (
+  id: string,
+  file: any,
+  protocol: string,
+  host: string,
+  payload: Partial<User>
+) => {
+  if (!id) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "User ID is required");
+  }
+
+  // Check if user exists
   const existingUser = await prisma.user.findUnique({
     where: { id },
   });
 
   if (!existingUser) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'User not found');
+    throw new ApiError(httpStatus.NOT_FOUND, "User not found");
   }
 
-  // Handle profile image upload
-  // const profileImage = file?.originalname
-  //   ? `${prodyacess.env.BACKEND_BASE_URL}/uploads/${file.originalname}`
-  //   : existingUser.profileImage;
+  // Check if there is an existing image and delete it from the file system
+  if (existingUser.image) {
+    const filename = existingUser.image.split("/uploads/")[1]; // Extract the filename from the URL (this part should match the file path)
+    const imagePath = path.join(process.cwd(), "uploads", filename);
 
+    try {
+      // Check if the image exists on the file system
+      if (fs.existsSync(imagePath)) {
+        fs.unlinkSync(imagePath); // Remove the existing image file from the server
+        console.log("Deleted the existing image:", imagePath);
+      } else {
+        console.log("Image not found, skipping deletion.");
+      }
+    } catch (err) {
+      console.error("Error deleting existing image:", err);
+    }
+  }
   // Prepare the updated data object
   const updatedData = {
-    ...payload, // Include fields from payload
-    //profileImage, // Update or retain profile image
+    ...payload,
+    image: file
+      ? `${protocol}://${host}/uploads/${file.filename}`
+      : existingUser.image, // Update the image if provided
   };
 
   const result = await prisma.user.update({
@@ -142,10 +162,9 @@ const updateMyProfileIntoDB = async (id: string, payload: any, file: any) => {
     select: {
       id: true,
       name: true,
-      userName: true,
-      phone: true,
+      role: true,
       email: true,
-
+      image: true,
       createdAt: true,
       updatedAt: true,
     },

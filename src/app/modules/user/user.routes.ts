@@ -11,7 +11,7 @@ const router = express.Router();
 
 router.get(
   '/',
-  auth(Role.SUPER_ADMIN, Role.ADMIN),
+  auth(Role.SUPER_ADMIN, ),
   UserControllers.getAllUsers
 );
 
@@ -20,7 +20,7 @@ router.get('/me', auth(), UserControllers.getMyProfile);
 router.get('/:id', auth(), UserControllers.getUserDetails);
 router.put(
   '/update-profile',
-  auth('USER', 'ADMIN'),
+  auth('USER', 'PARTNER'),
   fileUploader.uploadProfileImage,
   parseBodyData,
   UserControllers.updateMyProfile
@@ -28,7 +28,7 @@ router.put(
 
 router.put(
   '/update-user/:id',
-  auth('ADMIN'),
+  auth('PARTNER', 'SUPER_ADMIN'),
   UserControllers.updateUserRoleStatus
 );
 

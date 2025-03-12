@@ -41,16 +41,18 @@ const getUserDetails = catchAsync(async (req: Request, res: Response) => {
 
 const updateMyProfile = catchAsync(async (req: Request, res: Response) => {
   const id = req.user.id;
-  const payload = req.body.bodyData;
   const file = req.file as any;
-  const result = await UserServices.updateMyProfileIntoDB(id, payload, file);
-
+  const host = req.header("host") || '';
+  const payload = req.body
+  const result = await UserServices.updateMyProfileIntoDB(id, file, req.protocol, host, payload);
+  
   sendResponse(res, {
     statusCode: httpStatus.OK,
     message: 'User profile updated successfully',
     data: result,
   });
 });
+
 
 const updateUserRoleStatus = catchAsync(async (req: Request, res: Response) => {
   const { id } = req.params;
