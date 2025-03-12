@@ -29,7 +29,6 @@ const forgotPassword = catchAsync(async (req, res) => {
 });
 const verifiedEmail = catchAsync(async (req, res) => {
   const {hexCode, otpCode} = req.body
-  console.log("Verified email", hexCode, otpCode);
   
   const result = await AuthServices.verifyEmail(hexCode, otpCode);
   sendResponse(res, {

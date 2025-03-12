@@ -12,7 +12,7 @@ router.post('/register',
   AuthControllers.registrationNewUser);
 router.post(
   '/login',
-  validateRequest(authValidation.loginUser),
+  validateRequest(authValidation.loginUserSchema),
   AuthControllers.loginUser
 );
 router.post(

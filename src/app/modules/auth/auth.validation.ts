@@ -20,7 +20,7 @@ export const registerUserSchema = z.object({
     status: z.nativeEnum(user_status_enum).default("in_progress"),
   }),
 });
-const loginUser = z.object({
+const loginUserSchema = z.object({
   body: z.object({
     email: z
       .string({
@@ -64,7 +64,7 @@ const verifyOtpSchema = z.object({
 });
 
 export const authValidation = {
-  loginUser,
+  loginUserSchema,
   registerUserSchema,
   passwordResetSchema,
   changePasswordValidationSchema,
