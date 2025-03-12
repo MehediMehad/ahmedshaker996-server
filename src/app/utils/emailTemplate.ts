@@ -1,4 +1,4 @@
-export const emailText = (otpCode: any) => `
+export const emailText = (h1:string,otpCode: any) => `
        <table cellpadding="0" cellspacing="0" align="center" class="es-content" role="none"
             style="mso-table-lspace:0pt;mso-table-rspace:0pt;border-collapse:collapse;border-spacing:0px;width:100%;table-layout:fixed !important">
             <tr>
@@ -27,7 +27,7 @@ export const emailText = (otpCode: any) => `
                                                     <td align="center" style="padding:0;Margin:0;padding-bottom:10px">
                                                         <h3 class="es-m-txt-c"
                                                             style="Margin:0;font-family:arial, 'helvetica neue', helvetica, sans-serif;mso-line-height-rule:exactly;letter-spacing:0;font-size:46px;font-style:normal;font-weight:bold;line-height:46px;color:#333333">
-                                                            Reset Password</h3>
+                                                            ${h1}</h3>
                                                     </td>
                                                 </tr>
                                                 <tr>

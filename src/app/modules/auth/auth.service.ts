@@ -36,16 +36,16 @@ const loginUserFromDB = async (payload: {
   }
 
   // Update the FCM token if provided
-  if (payload?.fcmToken) {
-    await prisma.user.update({
-      where: {
-        email: payload.email, // Use email as the unique identifier for updating
-      },
-      data: {
-        fcmToken: payload.fcmToken,
-      },
-    });
-  }
+  // if (payload?.fcmToken) {
+  //   await prisma.user.update({
+  //     where: {
+  //       email: payload.email, // Use email as the unique identifier for updating
+  //     },
+  //     data: {
+  //       fcmToken: payload.fcmToken,
+  //     },
+  //   });
+  // }
 
   // Generate an access token
   const accessToken = jwtHelpers.generateToken(
@@ -68,46 +68,95 @@ const loginUserFromDB = async (payload: {
 };
 
 const registrationNewUser = async (payload: User) => {
+  return await prisma.$transaction(async (prisma) => {
+    // Check if email is already registered
+    const existingUser = await prisma.user.findUnique({
+      where: { email: payload.email },
+    });
 
+    if (existingUser) {
+      throw new AppError(httpStatus.CONFLICT, "This email is already registered");
+    }
 
-  // Check if email is already registered
-  const existingUser = await prisma.user.findUnique({
-    where: { email: payload.email },
+    // Hash the password
+    const hashPassword = await bcrypt.hash(
+      payload.password,
+      Number(config.bcrypt_salt_rounds)
+    );
+
+    // Create new user
+    const newUser = await prisma.user.create({
+      data: {
+        name: payload.name,
+        password: hashPassword,
+        email: payload.email,
+        age: payload.age,
+        gender: payload.gender,
+        address: payload.address,
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        status: true,
+        isVerified: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    // Generate OTP
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiry = new Date(Date.now() + 10 * 60 * 1000);
+    const identifier = crypto.randomBytes(16).toString("hex");
+
+    // Save OTP to database
+    const userData = await prisma.otp.upsert({
+      where: { email: newUser.email },
+      update: {
+        email: newUser.email,
+        otp: otpCode,
+        expiry: expiry,
+        hexCode: identifier,
+      },
+      create: {
+        email: newUser.email,
+        otp: otpCode,
+        expiry: expiry,
+        hexCode: identifier,
+      },
+    });
+
+    // Generate access token
+    const accessToken = jwtHelpers.generateToken(
+      {
+        id: newUser.id,
+        email: newUser.email,
+        role: newUser.role,
+      },
+      config.jwt.access_secret as Secret,
+      config.jwt.access_expires_in as string
+    );
+
+    // Send OTP via email (Outside transaction)
+    await sentEmailUtility(
+      newUser.email,
+      "verified Your Email",
+      emailText("Verified Your Email", otpCode)
+    );
+
+    return {
+      id: newUser.id,
+      name: newUser.name,
+      role: newUser.role,
+      isVerified: newUser.isVerified,
+      createdAt: newUser.createdAt,
+      updatedAt: newUser.updatedAt,
+      accessToken,
+      hexCode: userData.hexCode,
+    };
   });
-
-  if (existingUser) {
-    throw new AppError(httpStatus.CONFLICT, `This email is already registered`);
-  }
-
-  // Hash the password
-  const hashPassword = await bcrypt.hash(
-    payload.password,
-    Number(config.bcrypt_salt_rounds)
-  );
-
-
-  const createUser = await prisma.user.create({
-    data: {
-      name: payload.name,
-      password: hashPassword,
-      email: payload.email,
-      age: payload.age,
-      gender: payload.gender,
-      address: payload.address,
-    },
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      role: true,
-      status: true,
-      isVerified: true,
-      createdAt: true,
-      updatedAt: true,
-    },
-  });
-
-  return createUser;
 };
 
 const forgotPassword = async (payload: { email: string }) => {
@@ -146,7 +195,7 @@ const forgotPassword = async (payload: { email: string }) => {
   const result = await sentEmailUtility(
     user.email,
     "Reset Your Password",
-    emailText(otpCode)
+    emailText("Reset Password",otpCode)
   );
   return {
     messageId: result.messageId,
