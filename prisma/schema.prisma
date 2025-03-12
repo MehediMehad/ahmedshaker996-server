@@ -117,17 +117,7 @@ model User {
 
 //   @@map("partners")
 // }
-model SuperAdmin {
-  id             String   @id @default(auto()) @map("_id") @db.ObjectId
-  name           String
-  email          String   @unique
-  phone          String?
-  role           UserRoleEnum @default(SUPER_ADMIN)
-  password       String
-  createdAt      DateTime? @default(now())
 
-  @@map("admins")
-}
 
 model Subscription {
   id             String   @id @default(auto()) @map("_id") @db.ObjectId

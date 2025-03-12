@@ -110,7 +110,7 @@ const verifyEmail = async (hexCode: string, otpCode: string) => {
     }
 
     // Delete OTP record
-    await prisma.otp.delete({ where: { id: otpRecord.id } });
+    await prisma.otp.deleteMany({ where: { email: otpRecord.email } });
 
     // Update user verification status
     const updatedUser = await prisma.user.update({
