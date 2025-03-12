@@ -19,11 +19,11 @@ router.get('/me', auth(), UserControllers.getMyProfile);
 
 router.get('/:id', auth(), UserControllers.getUserDetails);
 router.put(
-  '/update-profile',
+  '/update-profile-image',
   auth('USER', 'PARTNER'),
   fileUploader.uploadProfileImage,
   parseBodyData,
-  UserControllers.updateMyProfile
+  UserControllers.updateMyProfileImage
 );
 
 router.put(

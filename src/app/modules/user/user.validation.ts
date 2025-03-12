@@ -1,40 +1,38 @@
+import { gender_enum, user_status_enum, UserRoleEnum } from "@prisma/client";
 import z from "zod";
-const registerUser = z.object({
+export const registerUserSchema = z.object({
   body: z.object({
-    phone: z.string({
-      required_error: "Phone is required!",
-    }),
-    email: z
-      .string({
-        required_error: "Email is required!",
+    name: z.string().min(2, "Name must be at least 2 characters"),
+    age: z.number().int().positive("Age must be a positive integer"),
+    email: z.string().email("Invalid email format"),
+    phone: z.string().optional(),
+    image: z.string().url().optional(),
+    password: z.string().min(6, "Password must be at least 6 characters"),
+    gender: z.nativeEnum(gender_enum).refine(
+      (val) => Object.values(gender_enum).includes(val),
+      (val) => ({
+        message: `Invalid gender value: '${val}', expected one of [${Object.values(gender_enum).join(", ")}]`,
       })
-      .email({
-        message: "Invalid email format!",
-      }),
-    password: z.string({
-      required_error: "Password is required!",
-    }),
+    ),
+    address: z.string().optional(),
+    role: z.nativeEnum(UserRoleEnum).default("USER"),
+    status: z.nativeEnum(user_status_enum).default("in_progress"),
   }),
 });
 
 const updateProfileSchema = z.object({
   body: z.object({
-    age: z
-      .number()
-      .int({
-        message: "Age must be an integer!",
+    name: z.string().min(2, "Name must be at least 2 characters").optional(),
+    age: z.number().int().positive("Age must be a positive integer").optional(),
+    image: z.string().url().optional(),
+    password: z.string().min(6, "Password must be at least 6 characters").optional(),
+    gender: z.nativeEnum(gender_enum).refine(
+      (val) => Object.values(gender_enum).includes(val),
+      (val) => ({
+        message: `Invalid gender value: '${val}', expected one of [${Object.values(gender_enum).join(", ")}]`,
       })
-      .optional(),
-    bio: z
-      .string({
-        required_error: "Bio is required!",
-      })
-      .optional(),
-    lastDonationDate: z
-      .string({
-        required_error: "Last donation date is required!",
-      })
-      .optional(),
+    ).optional(),
+    address: z.string().optional(),
   }),
 });
 
@@ -67,7 +65,6 @@ const verifyOtp = z.object({
 });
 
 export const UserValidations = {
-  registerUser,
   updateProfileSchema,
   forgotPassword,
   verifyOtp,

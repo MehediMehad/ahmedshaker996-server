@@ -39,12 +39,11 @@ const getUserDetails = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
-const updateMyProfile = catchAsync(async (req: Request, res: Response) => {
+const updateMyProfileImage = catchAsync(async (req: Request, res: Response) => {
   const id = req.user.id;
   const file = req.file as any;
   const host = req.header("host") || '';
-  const payload = req.body
-  const result = await UserServices.updateMyProfileIntoDB(id, file, req.protocol, host, payload);
+  const result = await UserServices.updateMyProfileImageIntoDB(id, file, req.protocol, host);
   
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -69,6 +68,6 @@ export const UserControllers = {
   getAllUsers,
   getMyProfile,
   getUserDetails,
-  updateMyProfile,
+  updateMyProfileImage,
   updateUserRoleStatus,
 };

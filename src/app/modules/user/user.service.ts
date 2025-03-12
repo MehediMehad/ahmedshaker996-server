@@ -109,12 +109,11 @@ const getUserDetailsFromDB = async (id: string) => {
   return user;
 };
 
-const updateMyProfileIntoDB = async (
+const updateMyProfileImageIntoDB = async (
   id: string,
   file: any,
   protocol: string,
   host: string,
-  payload: Partial<User>
 ) => {
   if (!id) {
     throw new ApiError(httpStatus.BAD_REQUEST, "User ID is required");
@@ -148,7 +147,6 @@ const updateMyProfileIntoDB = async (
   }
   // Prepare the updated data object
   const updatedData = {
-    ...payload,
     image: file
       ? `${protocol}://${host}/uploads/${file.filename}`
       : existingUser.image, // Update the image if provided
@@ -186,6 +184,6 @@ export const UserServices = {
   getAllUsersFromDB,
   getMyProfileFromDB,
   getUserDetailsFromDB,
-  updateMyProfileIntoDB,
+  updateMyProfileImageIntoDB,
   updateUserRoleStatusIntoDB,
 };
