@@ -11,38 +11,38 @@ datasource db {
 }
 
 model User {
-  id           String           @id @default(auto()) @map("_id") @db.ObjectId
-  subscription Subscription? // Optional field, SubscriptionId
-  name         String
-  age          Int
-  email        String           @unique
-  phone        String?
-  image        String?
-  password     String
-  gender       gender_enum
-  address      String?
-  role         UserRoleEnum     @default(USER)
-  status       user_status_enum @default(in_progress)
-  isDelete     Boolean          @default(false)
-  isVerified   Boolean          @default(false)
-  fcmToken     String?
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
+  id         String           @id @default(auto()) @map("_id") @db.ObjectId
+  name       String
+  age        Int
+  email      String           @unique
+  phone      String?
+  image      String?
+  password   String
+  gender     gender_enum
+  address    String?
+  role       UserRoleEnum     @default(USER)
+  status     user_status_enum @default(in_progress)
+  isDelete   Boolean          @default(false)
+  isVerified Boolean          @default(false)
+  fcmToken   String?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  // Relationship
+  subscriptionId      String?       @db.ObjectId
+  subscriptionDetails Subscription? @relation(fields: [subscriptionId], references: [id])
 
   @@map("users")
 }
 
 model Subscription {
   id               String                   @id @default(auto()) @map("_id") @db.ObjectId
-  subscriptedUsers String[]                 @unique @default([]) @db.ObjectId
-  userId           String                   @unique @db.ObjectId
-  user             User                     @relation(fields: [userId], references: [id])
-  plan             PlanEnum
+  subscriptedUsers User[] 
+  plan             PlanEnum                @unique
   price            Float
   status           subscription_status_enum
   duration         Int
-  startDate        DateTime
-  endDate          DateTime
+  credit           Int
   createdAt        DateTime                 @default(now())
   updatedAt        DateTime                 @updatedAt
   // renewalDate DateTime
@@ -57,6 +57,7 @@ model Booking {
   date      DateTime
   status    booking_status_enum @default(BOOKED)
   createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
 
   @@map("bookings")
 }

@@ -3,6 +3,7 @@ import { AuthRouters } from '../modules/auth/auth.routes';
 
 import { UserRouters } from '../modules/user/user.routes';
 import { ClassRouters } from '../modules/class/class.routes';
+import { SubscriptionRouters } from '../modules/Subscription/subscription.routes';
 
 
 
@@ -20,6 +21,10 @@ const moduleRoutes = [
   {
     path: '/classes',
     route: ClassRouters,
+  },
+  {
+    path: '/subscriptions',
+    route: SubscriptionRouters,
   },
 
 ];
