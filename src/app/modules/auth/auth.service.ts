@@ -7,21 +7,24 @@ import AppError from "../../errors/ApiError";
 import prisma from "../../config/prisma";
 
 import crypto from "crypto";
-
 import sentEmailUtility from "../../utils/sentEmailUtility";
 import { emailText } from "../../utils/emailTemplate";
 import { User, user_status_enum, UserRoleEnum } from "@prisma/client";
 import { jwtHelpers } from "../../helpers/jwtHelpers";
+import { generateOTP, saveOrUpdateOTP, sendOTPEmail } from "./auth.constant";
 
 const registrationNewUser = async (payload: User) => {
   return await prisma.$transaction(async (prisma) => {
-    // Check if email is already registered
+    // Check if email is already registered and Verified
     const existingUser = await prisma.user.findUnique({
       where: { email: payload.email },
     });
 
-    if (existingUser) {
-      throw new AppError(httpStatus.CONFLICT, "This email is already registered");
+    if (existingUser && existingUser.isVerified) {
+      throw new AppError(
+        httpStatus.CONFLICT,
+        "This email is already registered"
+      );
     }
 
     // Hash the password
@@ -30,56 +33,46 @@ const registrationNewUser = async (payload: User) => {
       Number(config.bcrypt_salt_rounds)
     );
 
-    // Create new user
-    const newUser = await prisma.user.create({
-      data: {
-        name: payload.name,
-        password: hashPassword,
-        email: payload.email,
-        age: payload.age,
-        gender: payload.gender,
-        address: payload.address,
-      },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        status: true,
-        isVerified: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
+    let newUser;
+    // Create new user if not existing
+    if (!existingUser) {
+      newUser = await prisma.user.create({
+        data: {
+          name: payload.name,
+          password: hashPassword,
+          email: payload.email,
+          age: payload.age,
+          gender: payload.gender,
+          address: payload.address,
+        },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          status: true,
+          isVerified: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+    } else {
+      newUser = existingUser;
+    }
 
-    // Generate OTP
-    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiry = new Date(Date.now() + 10 * 60 * 1000);
-    const identifier = crypto.randomBytes(16).toString("hex");
+    const { otpCode, expiry, hexCode } = generateOTP();
 
     // Save OTP to database
-    const userData = await prisma.otp.upsert({
-      where: { email: newUser.email },
-      update: {
-        email: newUser.email,
-        otp: otpCode,
-        expiry: expiry,
-        hexCode: identifier,
-      },
-      create: {
-        email: newUser.email,
-        otp: otpCode,
-        expiry: expiry,
-        hexCode: identifier,
-      },
-    });
+    const userData = await saveOrUpdateOTP(
+      newUser.email,
+      otpCode,
+      expiry,
+      hexCode,
+      prisma
+    );
 
     // Send OTP via email (Outside transaction)
-    await sentEmailUtility(
-      newUser.email,
-      "verified Your Email",
-      emailText("Verified Your Email", otpCode)
-    );
+    await sendOTPEmail(newUser.email, otpCode);
 
     return {
       id: newUser.id,
@@ -94,13 +87,12 @@ const registrationNewUser = async (payload: User) => {
 };
 
 const verifyEmail = async (hexCode: string, otpCode: string) => {
-  
   return await prisma.$transaction(async (prisma) => {
     // Find OTP record
     const otpRecord = await prisma.otp.findFirst({
       where: { hexCode: hexCode, otp: otpCode },
     });
-    // 
+    //
     if (otpRecord?.otp !== otpCode) {
       throw new AppError(httpStatus.BAD_REQUEST, "Invalid OTP or expired OTP");
     }
@@ -146,7 +138,6 @@ const verifyEmail = async (hexCode: string, otpCode: string) => {
   });
 };
 
-
 const loginUserFromDB = async (payload: {
   email: string;
   password: string;
@@ -158,6 +149,11 @@ const loginUserFromDB = async (payload: {
       email: payload.email,
     },
   });
+
+  // Check if the user is verified
+  if (!userData.isVerified) {
+    throw new AppError(httpStatus.UNAUTHORIZED, "User is not verified");
+  }
 
   // Check if the password is correct
   const isCorrectPassword = await bcrypt.compare(
@@ -173,7 +169,7 @@ const loginUserFromDB = async (payload: {
   // if (payload?.fcmToken) {
   //   await prisma.user.update({
   //     where: {
-  //       email: payload.email, // Use email as the unique identifier for updating
+  //       email: payload.email, // Use email as the unique hexCode for updating
   //     },
   //     data: {
   //       fcmToken: payload.fcmToken,
@@ -237,7 +233,7 @@ const forgotPassword = async (payload: { email: string }) => {
   const result = await sentEmailUtility(
     user.email,
     "Reset Your Password",
-    emailText("Reset Password",otpCode)
+    emailText("Reset Password", otpCode)
   );
   return {
     messageId: result.messageId,
