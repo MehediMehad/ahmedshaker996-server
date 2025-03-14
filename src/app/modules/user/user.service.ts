@@ -109,6 +109,55 @@ const getUserDetailsFromDB = async (id: string) => {
   return user;
 };
 
+const updateMyProfileIntoDB = async (
+  id: string,
+  payload: Partial<User>
+) => {
+  if (!id) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "User ID is required");
+  }
+
+  // Check if user exists
+  const existingUser = await prisma.user.findUnique({
+    where: { id },
+  });
+
+  if (!existingUser) {
+    throw new ApiError(httpStatus.NOT_FOUND, "User not found");
+  }
+
+
+
+  // Prepare the updated data object
+  const updatedData = {
+    ...payload,
+  };
+    // Check if dateOfBirth exists and is a valid string
+    if (updatedData.dateOfBirth && typeof updatedData.dateOfBirth === 'string') {
+      // Ensure it's a valid date in ISO format
+      updatedData.dateOfBirth = new Date(updatedData.dateOfBirth);
+    }
+
+  const result = await prisma.user.update({
+    where: {
+      id: id,
+    },
+    data: updatedData,
+    select: {
+      id: true,
+      name: true,
+      role: true,
+      email: true,
+      phone: true,
+      dateOfBirth: true,
+      gender: true,
+      address: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  });
+  return result;
+};
 const updateMyProfileImageIntoDB = async (
   id: string,
   file: any,
@@ -184,6 +233,7 @@ export const UserServices = {
   getAllUsersFromDB,
   getMyProfileFromDB,
   getUserDetailsFromDB,
+  updateMyProfileIntoDB,
   updateMyProfileImageIntoDB,
   updateUserRoleStatusIntoDB,
 };
